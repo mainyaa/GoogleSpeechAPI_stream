@@ -11,11 +11,9 @@ except:
     print("brew install portaudio or sudo apt-get install python-pyaudio python3-pyaudio")
     exit(1)
 import time
-import wave
 import audioop
 import math
 import sys
-import tempfile
 import signal
 
 import re
@@ -86,7 +84,7 @@ def make_channel(host, port):
 # listen print loop ##################
 def listen_print_loop(recognize_stream):
     recog_result = ''
-    def raise_if_no_result(signum):
+    def raise_if_no_result(signum, arg):
         if not recog_result:
             raise Exception()
     signal.signal(signal.SIGALRM, raise_if_no_result)
@@ -112,6 +110,8 @@ def listen_print_loop(recognize_stream):
                 # 音声認識終了（is_final: True）
                 if result.is_final:
                     return recog_result
+    except KeyboardInterrupt:
+        exit(0)
     except Exception:
         return recog_result
 
@@ -137,7 +137,6 @@ def request_stream(channels=CHANNELS, rate=RATE, chunk=CHUNK, language=LANG_CODE
         if len(frames) > 0:
             data_1frame = frames.pop(0)
             data_l2s = b''.join(map(str, data_1frame))
-            wf.writeframes(data_l2s)  # waveファイルに書き込み
             yield cloud_speech.StreamingRecognizeRequest(audio_content=data_l2s)  # google ASR
 
 
@@ -160,12 +159,6 @@ if __name__ == '__main__':
 
     stream.start_stream()
 
-    # 録音用waveファイルのFileStream作成 ------------
-    wf = wave.open(tempfile.TemporaryFile(), 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))
-    wf.setframerate(RATE)
-
     while True:
         # フラグ初期化 ##################################
         flag_record_start = False  # 音量が規定フレーム分，閾値を超え続けたらTRUE
@@ -174,6 +167,8 @@ if __name__ == '__main__':
         while not flag_record_start:
             try:
                 time.sleep(SLEEP_SEC)
+            except KeyboardInterrupt:
+                exit(0)
             except:
                 continue
 
@@ -234,7 +229,6 @@ if __name__ == '__main__':
     stream.close()
 
     p.terminate()  # pyaudioオブジェクトを終了
-    wf.close()  # wavefile stream クローズ
 
     print 'End Rec!'
 
